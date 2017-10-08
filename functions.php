@@ -4,24 +4,42 @@ define ( "API_KEY", 'b52a27406d4f49bc87d70713b023ee3a' );
 define ( "API_SECRET", 'dc41d95d73544bddab1b5c615569540c' );
 define ( "NONCE", time() );
 
+// простое форматирование текста
+function debug( $txt ) {
+    echo "<pre>";
+    print_r( $txt );
+    echo "</pre>";
+}
+
+// Отправляем запрос - Получаем данные (в виде массива)
 function getData( $uri ) {
     $sign = hash_hmac( 'sha512', $uri, API_SECRET );
     $ch = curl_init( $uri );
     curl_setopt( $ch, CURLOPT_HTTPHEADER, array('apisign:'.$sign) );
     curl_setopt( $ch, CURLOPT_RETURNTRANSFER, true );
     $execResult = curl_exec( $ch );
-    $obj = json_decode( $execResult, true );
-    return $obj;
+    $data = json_decode( $execResult, true );
+    return $data;
 }
 
-function bittrexbalance() {
-    $uri = 'https://bittrex.com/api/v1.1/account/getbalance?apikey=' . API_KEY . '&currency=BTC&nonce=' . NONCE;
+// Разница между двумя датами
+function isTimeToCloseOrder( $time  ) {
+    $currentTime = date("Y-m-d H:i:s");
+    $targetTime = date_format( $time, "Y-m-d H:i:s" );
+    $difference = strtotime($currentTime) - strtotime($targetTime); // разница, она же количество секунд
+    $minuteDifference = floor($difference / 60); // полная разница в минутах
+    return ( $minuteDifference >= 2880 ) ? true : false;
+}
+
+
+// Доступный баланс по конкретной монете
+function getAvailableCoinBalance( $coin ) {
+    $uri = 'https://bittrex.com/api/v1.1/account/getbalance?apikey=' . API_KEY . '&currency=' . $coin . '&nonce=' . NONCE;
     $obj = getData( $uri );
     $balance = $obj["result"]["Available"];
     return $balance;
 }
 
-echo bittrexbalance();
 
 // Получаем список торгуемых криптовалют
 function getCurrencies() {
@@ -31,7 +49,7 @@ function getCurrencies() {
 }
 
 // Сведения о торговле по паре BTC-$coin
-function getMarkeSummary( $coin ) {
+function getMarketSummary( $coin ) {
     $uri = 'https://bittrex.com/api/v1.1/public/getmarketsummary?market=btc-' . $coin;
     $data = getData( $uri );
     return $data["result"][0];
@@ -51,6 +69,21 @@ function getTicker( $coin ) {
     return $data["result"];
 }
 
-echo "<pre>";
-print_r( getTicker('OMG') );
-echo "</pre>";
+// Получаем значение Last по монете
+function getLastPrice( $coin ) {
+    $uri = 'https://bittrex.com/api/v1.1/public/getticker?market=btc-' . $coin;
+    $data = getData( $uri );
+    return $data["result"]["Last"];
+}
+
+
+// Проверка возможности продажи монеты по текущей (Last) цене
+// fee 0,25% - процент Bittrex'a
+// Если можно продать текущее количество монет по текущей цене -> true
+function isCanSellCoin( $coin, $fee = (100 - 0.25), $min_size_order = 0.00050000 ) {
+    $available = getAvailableCoinBalance( $coin );
+    $last = getLastPrice( $coin );
+    $bid = round( $available * $last, 8 );
+    $currentBid = round ( ( $bid * $fee / 100), 8 );
+    return ( $currentBid >= $min_size_order ) ? true : false;
+}
