@@ -1,7 +1,7 @@
 <?php
 
-define ( "API_KEY", 'b52a27406d4f49bc87d70713b023ee3a' );
-define ( "API_SECRET", 'dc41d95d73544bddab1b5c615569540c' );
+define ( "API_KEY", 'XXXXXXXXX' );
+define ( "API_SECRET", 'XXXXXXXXX' );
 define ( "NONCE", time() );
 
 // простое форматирование текста
